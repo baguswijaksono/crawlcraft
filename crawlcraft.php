@@ -72,3 +72,37 @@ class DataStorage {
     }
 }
 
+class CrawlCraft {
+    private $httpClient;
+    private $urlManager;
+    private $dataStorage;
+
+    public function __construct($startUrl, $storageFile) {
+        $this->httpClient = new HttpClient();
+        $this->urlManager = new UrlManager();
+        $this->dataStorage = new DataStorage($storageFile);
+        $this->urlManager->addUrl($startUrl);
+    }
+
+    public function run() {
+        while ($this->urlManager->hasMoreUrls()) {
+            $url = $this->urlManager->getUrl();
+            $html = $this->httpClient->fetch($url);
+            $parser = new HtmlParser($html);
+
+            // Extract and save data (customize as needed)
+            $data = ['url' => $url, 'content' => $html];
+            $this->dataStorage->save($data);
+
+            // Extract and add new URLs to the queue
+            $links = $parser->extractLinks();
+            foreach ($links as $link) {
+                $this->urlManager->addUrl($link);
+            }
+
+            $this->urlManager->markAsVisited($url);
+        }
+    }
+}
+
+
