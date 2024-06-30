@@ -1,3 +1,4 @@
+<?php
 class HttpClient {
     public function fetch($url) {
         $ch = curl_init();
@@ -8,3 +9,26 @@ class HttpClient {
         return $output;
     }
 }
+
+class HtmlParser {
+    private $dom;
+    private $xpath;
+
+    public function __construct($html) {
+        $this->dom = new DOMDocument();
+        @$this->dom->loadHTML($html);
+        $this->xpath = new DOMXPath($this->dom);
+    }
+
+    public function extractLinks() {
+        $links = [];
+        $nodes = $this->xpath->query("//a[@href]");
+        foreach ($nodes as $node) {
+            $links[] = $node->getAttribute("href");
+        }
+        return $links;
+    }
+
+    // Add other methods to extract specific data
+}
+
