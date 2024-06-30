@@ -60,3 +60,15 @@ class UrlManager {
     }
 }
 
+class DataStorage {
+    private $file;
+
+    public function __construct($filename) {
+        $this->file = $filename;
+    }
+
+    public function save($data) {
+        file_put_contents($this->file, json_encode($data, JSON_PRETTY_PRINT));
+    }
+}
+
