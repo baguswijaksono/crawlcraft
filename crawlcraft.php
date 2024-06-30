@@ -32,3 +32,31 @@ class HtmlParser {
     // Add other methods to extract specific data
 }
 
+class UrlManager {
+    private $queue;
+    private $visited;
+
+    public function __construct() {
+        $this->queue = [];
+        $this->visited = [];
+    }
+
+    public function addUrl($url) {
+        if (!in_array($url, $this->visited) && !in_array($url, $this->queue)) {
+            $this->queue[] = $url;
+        }
+    }
+
+    public function getUrl() {
+        return array_shift($this->queue);
+    }
+
+    public function markAsVisited($url) {
+        $this->visited[] = $url;
+    }
+
+    public function hasMoreUrls() {
+        return !empty($this->queue);
+    }
+}
+
