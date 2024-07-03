@@ -29,7 +29,44 @@ class HtmlParser {
         return $links;
     }
 
-    // Add other methods to extract specific data
+    public function extractTitle() {
+        $nodes = $this->xpath->query("//title");
+        return $nodes->length > 0 ? $nodes->item(0)->nodeValue : null;
+    }
+
+    public function extractMetaDescription() {
+        $nodes = $this->xpath->query("//meta[@name='description']");
+        return $nodes->length > 0 ? $nodes->item(0)->getAttribute("content") : null;
+    }
+
+    public function extractHeadings() {
+        $headings = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $nodes = $this->xpath->query("//h$i");
+            foreach ($nodes as $node) {
+                $headings[] = $node->nodeValue;
+            }
+        }
+        return $headings;
+    }
+
+    public function extractImages() {
+        $images = [];
+        $nodes = $this->xpath->query("//img[@src]");
+        foreach ($nodes as $node) {
+            $images[] = $node->getAttribute("src");
+        }
+        return $images;
+    }
+
+    public function extractParagraphs() {
+        $paragraphs = [];
+        $nodes = $this->xpath->query("//p");
+        foreach ($nodes as $node) {
+            $paragraphs[] = $node->nodeValue;
+        }
+        return $paragraphs;
+    }
 }
 
 class UrlManager {
@@ -91,18 +128,38 @@ class CrawlCraft {
             $parser = new HtmlParser($html);
 
             // Extract and save data (customize as needed)
-            $data = ['url' => $url, 'content' => $html];
+            $data = [
+                'url' => $url,
+                'title' => $parser->extractTitle(),
+                'meta_description' => $parser->extractMetaDescription(),
+                'headings' => $parser->extractHeadings(),
+                'images' => $parser->extractImages(),
+                'paragraphs' => $parser->extractParagraphs()
+            ];
             $this->dataStorage->save($data);
 
             // Extract and add new URLs to the queue
             $links = $parser->extractLinks();
             foreach ($links as $link) {
-                $this->urlManager->addUrl($link);
+                // Convert relative URLs to absolute URLs
+                $absoluteUrl = $this->convertToAbsoluteUrl($url, $link);
+                $this->urlManager->addUrl($absoluteUrl);
             }
 
             $this->urlManager->markAsVisited($url);
         }
     }
+
+    private function convertToAbsoluteUrl($baseUrl, $relativeUrl) {
+        // Use parse_url and build_url to handle relative URLs
+        $parsedUrl = parse_url($baseUrl);
+        if (strpos($relativeUrl, "http") === 0) {
+            return $relativeUrl;
+        }
+        if ($relativeUrl[0] === '/') {
+            return "{$parsedUrl['scheme']}://{$parsedUrl['host']}{$relativeUrl}";
+        }
+        return "{$parsedUrl['scheme']}://{$parsedUrl['host']}/{$relativeUrl}";
+    }
 }
-
-
+?>
