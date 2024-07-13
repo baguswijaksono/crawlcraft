@@ -1,9 +1,16 @@
 <?php
 class HttpClient {
+    private $userAgent;
+
+    public function __construct($userAgent = 'Mozilla/5.0') {
+        $this->userAgent = $userAgent;
+    }
+
     public function fetch($url) {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
         $output = curl_exec($ch);
         curl_close($ch);
         return $output;
@@ -72,15 +79,20 @@ class HtmlParser {
 class UrlManager {
     private $queue;
     private $visited;
+    private $depth;
+    private $maxDepth;
 
-    public function __construct() {
+    public function __construct($maxDepth = 3) {
         $this->queue = [];
         $this->visited = [];
+        $this->depth = [];
+        $this->maxDepth = $maxDepth;
     }
 
-    public function addUrl($url) {
-        if (!in_array($url, $this->visited) && !in_array($url, $this->queue)) {
+    public function addUrl($url, $depth = 0) {
+        if (!in_array($url, $this->visited) && !in_array($url, $this->queue) && $depth <= $this->maxDepth) {
             $this->queue[] = $url;
+            $this->depth[$url] = $depth;
         }
     }
 
@@ -88,8 +100,13 @@ class UrlManager {
         return array_shift($this->queue);
     }
 
+    public function getDepth($url) {
+        return $this->depth[$url];
+    }
+
     public function markAsVisited($url) {
         $this->visited[] = $url;
+        unset($this->depth[$url]);
     }
 
     public function hasMoreUrls() {
@@ -109,22 +126,52 @@ class DataStorage {
     }
 }
 
+class Logger {
+    private $logFile;
+
+    public function __construct($logFile) {
+        $this->logFile = $logFile;
+    }
+
+    public function log($message) {
+        file_put_contents($this->logFile, $message . PHP_EOL, FILE_APPEND);
+    }
+}
+
 class CrawlCraft {
     private $httpClient;
     private $urlManager;
     private $dataStorage;
+    private $logger;
+    private $rateLimit;
+    private $lastRequestTime;
 
-    public function __construct($startUrl, $storageFile) {
-        $this->httpClient = new HttpClient();
+    public function __construct($startUrl, $storageFile, $logFile, $rateLimit = 1, $userAgent = 'Mozilla/5.0') {
+        $this->httpClient = new HttpClient($userAgent);
         $this->urlManager = new UrlManager();
         $this->dataStorage = new DataStorage($storageFile);
+        $this->logger = new Logger($logFile);
+        $this->rateLimit = $rateLimit;
+        $this->lastRequestTime = microtime(true);
         $this->urlManager->addUrl($startUrl);
     }
 
     public function run() {
         while ($this->urlManager->hasMoreUrls()) {
+            $currentTime = microtime(true);
+            if ($currentTime - $this->lastRequestTime < $this->rateLimit) {
+                usleep(($this->rateLimit - ($currentTime - $this->lastRequestTime)) * 1000000);
+            }
+
             $url = $this->urlManager->getUrl();
-            $html = $this->httpClient->fetch($url);
+            try {
+                $html = $this->httpClient->fetch($url);
+            } catch (Exception $e) {
+                $this->logger->log("Failed to fetch URL: $url - " . $e->getMessage());
+                continue;
+            }
+            $this->lastRequestTime = microtime(true);
+
             $parser = new HtmlParser($html);
 
             // Extract and save data (customize as needed)
@@ -140,10 +187,11 @@ class CrawlCraft {
 
             // Extract and add new URLs to the queue
             $links = $parser->extractLinks();
+            $currentDepth = $this->urlManager->getDepth($url);
             foreach ($links as $link) {
                 // Convert relative URLs to absolute URLs
                 $absoluteUrl = $this->convertToAbsoluteUrl($url, $link);
-                $this->urlManager->addUrl($absoluteUrl);
+                $this->urlManager->addUrl($absoluteUrl, $currentDepth + 1);
             }
 
             $this->urlManager->markAsVisited($url);
