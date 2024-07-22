@@ -7,14 +7,26 @@ class HttpClient {
     }
 
     public function fetch($url) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
-        $output = curl_exec($ch);
-        curl_close($ch);
-        return $output;
+        $retry = 3;
+        while ($retry > 0) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
+            $output = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+    
+            if ($httpCode == 200) {
+                return $output;
+            } else {
+                $retry--;
+                sleep(1); // Delay before retrying
+            }
+        }
+        throw new Exception("Failed to fetch URL after retries: $url");
     }
+
 }
 
 class HtmlParser {
